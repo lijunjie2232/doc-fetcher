@@ -1,7 +1,7 @@
 [project]
 name = "doc-fetcher"
 version = "0.1.0"
-description = ""
+description = "web document fetcher"
 readme = "README.md"
 authors = [
     { name = "lijunjie2232", email = "2533584225@qq.com" }
