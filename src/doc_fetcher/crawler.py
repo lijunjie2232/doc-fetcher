@@ -22,6 +22,14 @@ from crawl4ai import DefaultMarkdownGenerator, LXMLWebScrapingStrategy
 _UA = "Mozilla/5.0 (compatible; doc-fetcher/0.1)"
 DEFAULT_PARALLEL = int(os.environ.get("PARALLEL_NUM", "5"))
 
+# Non-page resources a link scan happily picks up (llms.txt, sitemaps, PDFs,
+# images). Filtering them keeps the failure list about real pages.
+_SKIP_SUFFIXES = (
+    ".txt", ".xml", ".json", ".yaml", ".yml", ".csv", ".pdf", ".zip", ".gz",
+    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico",
+    ".mp4", ".webm", ".woff", ".woff2", ".ttf", ".css", ".js",
+)
+
 
 def canonicalize(url: str, base: str = "") -> str:
     """Absolute, fragment/query-free, trailing-slash-free URL used for dedup."""
@@ -30,6 +38,11 @@ def canonicalize(url: str, base: str = "") -> str:
     url, _ = up.urldefrag(url)
     s = up.urlsplit(url)
     return up.urlunsplit((s.scheme.lower(), s.netloc.lower(), s.path.rstrip("/"), "", ""))
+
+
+def is_asset(url: str) -> bool:
+    """True for URLs that can never be an HTML docs page."""
+    return up.urlsplit(url).path.lower().endswith(_SKIP_SUFFIXES)
 
 
 class DocFetcher:
@@ -102,6 +115,8 @@ class DocFetcher:
         return leaf.with_name(leaf.name + ".md")
 
     async def _process(self, url: str, client: httpx.AsyncClient) -> None:
+        if is_asset(url):
+            return  # llms.txt, sitemap.xml, images: never a docs page, not an error
         dest = self._dest(url)
         if dest.exists() and not self.overwrite:
             self.skipped += 1

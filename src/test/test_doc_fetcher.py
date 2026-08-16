@@ -1,5 +1,5 @@
 """Minimal self-check for the pure crawler logic (no network). Run: python test_doc_fetcher.py"""
-from doc_fetcher.crawler import DocFetcher, canonicalize
+from doc_fetcher.crawler import DocFetcher, canonicalize, is_asset
 
 f = DocFetcher("https://flet.dev/docs", "/tmp/out")
 
@@ -20,5 +20,11 @@ assert str(f._dest("https://flet.dev/docs/quick/start")).endswith("out/docs/quic
 assert str(f._dest("https://flet.dev/docs")).endswith("out/docs.md")
 assert str(f._dest("https://flet.dev/docs/index.html")).endswith("out/docs/index.md")
 assert ".." not in str(f._dest("https://flet.dev/docs/../../etc/passwd"))
+
+# non-page resources are ignored rather than reported as failures
+assert is_asset("https://docs.langchain.com/llms.txt")
+assert is_asset("https://flet.dev/docs/logo.PNG")
+assert not is_asset("https://flet.dev/docs/v1.2")
+assert not is_asset("https://flet.dev/docs/quick/start")
 
 print("self-check OK")
