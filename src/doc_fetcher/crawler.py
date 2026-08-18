@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import os
 import urllib.parse as up
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Set
 
@@ -43,6 +44,18 @@ def canonicalize(url: str, base: str = "") -> str:
 def is_asset(url: str) -> bool:
     """True for URLs that can never be an HTML docs page."""
     return up.urlsplit(url).path.lower().endswith(_SKIP_SUFFIXES)
+
+
+def sitemap_locs(xml: bytes) -> tuple[str, list[str]]:
+    """Parse sitemap XML into (root kind, <loc> values).
+
+    Kind is ``"sitemapindex"`` (locs are child sitemaps) or ``"urlset"``
+    (locs are pages). Namespaces are stripped.
+    """
+    root = ET.fromstring(xml)
+    kind = root.tag.rsplit("}", 1)[-1]
+    locs = [(e.text or "").strip() for e in root.iter() if e.tag.rsplit("}", 1)[-1] == "loc"]
+    return kind, [loc for loc in locs if loc]
 
 
 class DocFetcher:
@@ -157,6 +170,34 @@ class DocFetcher:
                 if self.max_pages and self.scraped >= self.max_pages:
                     self._stop = True
 
+    async def _seed(self, client: httpx.AsyncClient) -> None:
+        """Enqueue URLs listed in <host>/sitemap.xml.
+
+        JS-rendered docs sites (Mintlify, Nextra, Docusaurus with client-side
+        nav) ship almost no usable <a> tags in their static HTML, so following
+        links alone discovers nearly nothing; most still publish a sitemap that
+        lists every page.
+        """
+        root = f"{self.scheme}://{self.netloc}"
+        todo, done = [f"{root}/sitemap.xml"], set()
+        while todo and len(done) < 10:  # ponytail: sitemap indexes nest a level or two, never deep
+            sm = todo.pop()
+            done.add(sm)
+            try:
+                resp = await client.get(sm)
+                resp.raise_for_status()
+                kind, locs = sitemap_locs(resp.content)
+            except Exception:  # noqa: BLE001 - no/broken sitemap just means links-only crawling
+                continue
+            for loc in locs:
+                if kind == "sitemapindex":
+                    if loc not in done:
+                        todo.append(loc)
+                    continue
+                url = canonicalize(loc)
+                if url not in self.seen and self._in_prefix(url):
+                    self._discover(url)
+
     async def run(self) -> None:
         self.out.mkdir(parents=True, exist_ok=True)
         limits = httpx.Limits(max_connections=self.parallel, max_keepalive_connections=self.parallel)
@@ -170,6 +211,7 @@ class DocFetcher:
         ) as client:
             with self.manifest_path.open("a", encoding="utf-8") as self._manifest:
                 self._load_seen()  # resume: enqueue URLs discovered in prior runs
+                await self._seed(client)  # sitemap first: JS sites expose no links
                 self.queue.put_nowait(self.start)
                 with tqdm(desc=f"doc-fetch {self.start}", unit="page") as pbar:
                     workers = [asyncio.create_task(self._worker(client, pbar)) for _ in range(self.parallel)]
