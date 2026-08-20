@@ -15,11 +15,11 @@ assert not f._in_prefix("https://flet.dev/blog")       # sibling
 assert not f._in_prefix("https://flet.dev/docsfoo")    # sneaky prefix
 assert not f._in_prefix("https://studio.flet.dev/docs")  # other host
 
-# URL -> output file path
-assert str(f._dest("https://flet.dev/docs/quick/start")).endswith("out/docs/quick/start.md")
-assert str(f._dest("https://flet.dev/docs")).endswith("out/docs.md")
-assert str(f._dest("https://flet.dev/docs/index.html")).endswith("out/docs/index.md")
-assert ".." not in str(f._dest("https://flet.dev/docs/../../etc/passwd"))
+# URL -> output file path (compared as segments: Windows uses a different separator)
+assert f._dest("https://flet.dev/docs/quick/start").parts[-4:] == ("out", "docs", "quick", "start.md")
+assert f._dest("https://flet.dev/docs").name == "docs.md"
+assert f._dest("https://flet.dev/docs/index.html").parts[-2:] == ("docs", "index.md")
+assert ".." not in f._dest("https://flet.dev/docs/../../etc/passwd").parts
 
 # non-page resources are ignored rather than reported as failures
 assert is_asset("https://docs.langchain.com/llms.txt")
