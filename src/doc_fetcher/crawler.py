@@ -13,7 +13,7 @@ import os
 import urllib.parse as up
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Set
+from typing import IO, Set
 
 import httpx
 from tqdm import tqdm
@@ -89,7 +89,7 @@ class DocFetcher:
         # Manifest of every URL ever discovered, so a resumed crawl can skip
         # already-saved pages yet still know (and fetch) the ones not done yet.
         self.manifest_path = self.out / ".urls.txt"
-        self._manifest = None
+        self._manifest: IO[str]  # opened for the lifetime of run()
 
     def _load_seen(self) -> None:
         """Enqueue previously discovered URLs (their file, if present, is skipped later)."""
