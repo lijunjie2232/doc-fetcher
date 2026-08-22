@@ -23,10 +23,14 @@ HTML→Markdown 的转换由 [crawl4ai](https://github.com/unclecode/crawl4ai) �
 - **前缀限定。** 从起始 URL `<url>` 出发，仅爬取同主机下基底路径 `<url>/*` 的后代页面。
   同级页面（`https://flet.dev/abc`）、父级（`https://flet.dev`）以及其他主机（`studio.flet.dev`）
   一律不会被抓取。
+- **由 `sitemap.xml` 播种。** 抓取前先读取 `<host>/sitemap.xml`（含嵌套的 `sitemapindex`），
+  把其中所有在范围内的 URL 入队。由 JS 渲染的文档站（Mintlify、Nextra、客户端导航等）
+  静态 HTML 里几乎没有可用的 `<a>` 标签，仅靠跟随链接将一无所获。
 - **基于队列的广度优先。** 单个共享的 `httpx.AsyncClient`（keep-alive 连接池）由
   `PARALLEL_NUM` 个并发 worker 消费，它们从 `asyncio.Queue` 中取出 URL。
 - **跳过已保存内容。** 对应 `.md` 已存在的页面不会被重复下载。输出目录中的清单文件
   `.urls.txt` 记录了历史上发现过的所有 URL，因此重新运行即可续抓中断的爬取，且仅补齐缺失部分。
+- **忽略非 HTML 链接。** `llms.txt`、`sitemap.xml`、PDF、图片等资源会被静默跳过，不再计入失败。
 
 ## 安装
 
@@ -103,7 +107,8 @@ source: https://flet.dev/docs/getting-started/installation
 
 - **仅支持静态 HTML。** 页面通过 `httpx` 抓取，因此 JavaScript 渲染的内容不会被获取。
   大多数文档站点（MkDocs、Docusaurus、Sphinx）都是静态的，可正常工作；
-  重度依赖 JS 的站点则需改用 crawl4ai 的浏览器模式。
+  重度依赖 JS 的站点则需改用 crawl4ai 的浏览器模式。页面内容本身由 JS 渲染、
+  且站点未提供 `sitemap.xml` 的站，本工具无法发现其页面。
 - **规范化 URL 时忽略查询字符串，** 因此 `/a?x=1` 与 `/a` 被视为同一页面。
 - **Markdown 会保留导航/侧边栏文本。** 若要去除这些样板内容，
   请向 crawl4ai 的 `DefaultMarkdownGenerator` 传入内容过滤器并使用 `fit_markdown`。

@@ -24,12 +24,18 @@ driven over plain HTTP (no headless browser) for speed.
 - **Prefix-scoped.** Starting from `<url>`, only same-host descendants of the base
   path (`<url>/*`) are crawled. Sibling pages (`https://flet.dev/abc`), the parent
   (`https://flet.dev`) and other hosts (`studio.flet.dev`) are never fetched.
+- **Seeded from `sitemap.xml`.** Before crawling, `<host>/sitemap.xml` (and any nested
+  `sitemapindex`) is read and every in-scope URL is queued. JS-rendered docs sites
+  (Mintlify, Nextra, client-side nav) ship almost no usable `<a>` tags in their static
+  HTML, so following links alone would find nothing.
 - **Breadth-first over a queue.** A single shared `httpx.AsyncClient` (keep-alive
   connection pool) is consumed by `PARALLEL_NUM` concurrent workers pulling URLs from
   an `asyncio.Queue`.
 - **Skips what's already saved.** Pages whose `.md` already exists are not
   re-downloaded. A `.urls.txt` manifest in the output directory records every URL ever
   discovered, so re-running resumes an interrupted crawl and only fetches the gaps.
+- **Non-HTML links are ignored.** `llms.txt`, `sitemap.xml`, PDFs, images and other
+  assets are skipped silently instead of being reported as failures.
 
 ## Install
 
@@ -107,7 +113,8 @@ source: https://flet.dev/docs/getting-started/installation
 
 - **Static HTML only.** Pages are fetched with `httpx`, so JavaScript-rendered content
   won't appear. Most documentation sites (MkDocs, Docusaurus, Sphinx) are static and
-  work fine; JS-heavy sites need crawl4ai's browser mode instead.
+  work fine; JS-heavy sites need crawl4ai's browser mode instead. Sites whose content
+  is JS-rendered *and* that publish no `sitemap.xml` cannot be discovered at all.
 - **Query strings are ignored** when canonicalizing URLs, so `/a?x=1` and `/a` are
   treated as one page.
 - **Markdown keeps nav/sidebar text.** To drop boilerplate, pass a content filter to

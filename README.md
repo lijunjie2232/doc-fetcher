@@ -23,11 +23,17 @@ HTML→Markdown の変換は [crawl4ai](https://github.com/unclecode/crawl4ai) �
 
 - **プレフィックススコープ** — 開始 URL `<url>` から、同一ホスト上の基底パス配下 `<url>/*` のみをクロールします。
   兄弟ページ（`https://flet.dev/abc`）、親（`https://flet.dev`）、他ホスト（`studio.flet.dev`）は取得対象外です。
+- **`sitemap.xml` からシード** — クロール前に `<host>/sitemap.xml`（入れ子の `sitemapindex` を含む）を読み、
+  スコープ内の URL をすべてキューに入れます。JS 描画型のドキュメントサイト（Mintlify / Nextra /
+  クライアントサイドナビゲーション）は静的 HTML に使える `<a>` をほとんど含まないため、
+  リンク追跡だけでは何も見つかりません。
 - **キューに対する幅優先探索** — 単一の共有 `httpx.AsyncClient`（キープライブ接続プール）を、
   `asyncio.Queue` から URL を取り出す `PARALLEL_NUM` 個の同時ワーカーが消費します。
 - **保存済みはスキップ** — `.md` が既に存在するページは再ダウンロードしません。
   出力ディレクトリのマニフェスト `.urls.txt` が過去に発見した全 URL を記録するため、
   再実行で中断したクロールを再開し、未取得分だけを取得できます。
+- **非 HTML リンクは無視** — `llms.txt`・`sitemap.xml`・PDF・画像などのアセットは、
+  失敗として報告せず静かにスキップします。
 
 ## インストール
 
@@ -104,7 +110,8 @@ source: https://flet.dev/docs/getting-started/installation
 
 - **静的 HTML のみ対応** — ページは `httpx` で取得するため、JavaScript でレンダリングされる内容は取得できません。
   大半のドキュメントサイト（MkDocs / Docusaurus / Sphinx）は静的であり問題なく動作しますが、
-  JS 依存の強いサイトは crawl4ai のブラウザモードが必要です。
+  JS 依存の強いサイトは crawl4ai のブラウザモードが必要です。本文が JS 描画で
+  かつ `sitemap.xml` を公開していないサイトは、ページを発見できません。
 - **クエリ文字列は無視** — URL の正規化時に `/a?x=1` と `/a` は同一ページとして扱われます。
 - **Markdown はナビ／サイドバーのテキストを含む** — 定型文を除外するには、crawl4ai の
   `DefaultMarkdownGenerator` にコンテンツフィルタを渡して `fit_markdown` を利用してください。
