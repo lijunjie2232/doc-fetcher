@@ -4,12 +4,14 @@ save each as Markdown (via crawl4ai) into a directory tree.
 Design: a single shared ``httpx.AsyncClient`` (keep-alive connection pool) is
 consumed by ``parallel`` worker coroutines pulling URLs from an ``asyncio.Queue``.
 Only URLs matching ``<base_url>/*`` (same host, path under the base path) are ever
-fetched; pages already on disk are skipped.
+fetched; pages already on disk are skipped. Links to crawled pages are rewritten
+as paths relative to the saved file, so the output tree reads offline.
 """
 from __future__ import annotations
 
 import asyncio
 import os
+import re
 import urllib.parse as up
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -30,6 +32,9 @@ _SKIP_SUFFIXES = (
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico",
     ".mp4", ".webm", ".woff", ".woff2", ".ttf", ".css", ".js",
 )
+
+# Inline Markdown link/image destination: ``[text](dest)`` / ``![alt](dest)``.
+_LINK_DEST = re.compile(r"(\]\()([^)\s]+)(\))")
 
 
 def canonicalize(url: str, base: str = "") -> str:
@@ -67,6 +72,7 @@ class DocFetcher:
         timeout: float = 20.0,
         overwrite: bool = False,
         max_pages: int = 0,
+        relative_links: bool = True,
     ):
         s = up.urlsplit(start_url)
         if s.scheme not in ("http", "https") or not s.netloc:
@@ -79,6 +85,7 @@ class DocFetcher:
         self.timeout = timeout
         self.overwrite = overwrite
         self.max_pages = max_pages  # 0 = unlimited
+        self.relative_links = relative_links  # rewrite links to crawled pages
         self.seen: Set[str] = {self.start}
         self.queue: "asyncio.Queue[str]" = asyncio.Queue()
         self.scraped = self.skipped = 0
@@ -127,6 +134,30 @@ class DocFetcher:
         leaf = self.out.joinpath(*segs)
         return leaf.with_name(leaf.name + ".md")
 
+    def _relativize(self, markdown: str, url: str, dest: Path) -> str:
+        """Rewrite links to crawled pages as paths relative to ``dest``.
+
+        Left untouched: in-page anchors (``#id``), assets, and pages outside the
+        crawl scope (their files are never saved, so an absolute URL still works).
+        """
+
+        def repl(m: re.Match[str]) -> str:
+            href = m.group(2)
+            if href.startswith("#"):
+                return m.group(0)
+            abs_url = up.urljoin(url, href)
+            target = canonicalize(abs_url)
+            if is_asset(target) or not self._in_prefix(target):
+                return m.group(0)
+            target_dest = self._dest(target)
+            frag = up.urlsplit(abs_url).fragment
+            if frag and target_dest == dest:  # link to this page: keep it as an anchor
+                return f"{m.group(1)}#{frag})"
+            rel = os.path.relpath(target_dest, dest.parent).replace(os.sep, "/")
+            return f"{m.group(1)}{up.quote(rel)}{f'#{frag}' if frag else ''})"
+
+        return _LINK_DEST.sub(repl, markdown)
+
     async def _process(self, url: str, client: httpx.AsyncClient) -> None:
         if is_asset(url):
             return  # llms.txt, sitemap.xml, images: never a docs page, not an error
@@ -147,6 +178,8 @@ class DocFetcher:
         final = canonicalize(str(resp.url), url)
         result = self._scraper.scrap(final, resp.text)
         markdown = self._md.generate_markdown(result.cleaned_html, base_url=final).raw_markdown
+        if self.relative_links:
+            markdown = self._relativize(markdown, final, dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(f"---\nsource: {url}\n---\n\n{markdown}", encoding="utf-8")
         self.scraped += 1

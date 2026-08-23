@@ -21,6 +21,16 @@ assert f._dest("https://flet.dev/docs").name == "docs.md"
 assert f._dest("https://flet.dev/docs/index.html").parts[-2:] == ("docs", "index.md")
 assert ".." not in f._dest("https://flet.dev/docs/../../etc/passwd").parts
 
+# links to crawled pages are rewritten relative to the saved file; anchors,
+# assets and out-of-scope pages keep their absolute URL
+page = "https://flet.dev/docs/quick/other"
+md = ("[a](https://flet.dev/docs/quick/start#install) [b](/docs) [c](https://flet.dev/blog) "
+      "![i](https://flet.dev/docs/logo.png) [d](#sec) [e](https://flet.dev/docs/quick/other#note)")
+assert f._relativize(md, page, f._dest(page)) == (
+    "[a](start.md#install) [b](../../docs.md) [c](https://flet.dev/blog) "
+    "![i](https://flet.dev/docs/logo.png) [d](#sec) [e](#note)"
+)
+
 # non-page resources are ignored rather than reported as failures
 assert is_asset("https://docs.langchain.com/llms.txt")
 assert is_asset("https://flet.dev/docs/logo.PNG")
