@@ -35,10 +35,13 @@ def main() -> None:
     ap.add_argument("--timeout", type=float, default=20.0, help="per-request timeout seconds")
     ap.add_argument("--max-pages", type=int, default=0, help="stop after N pages (0 = unlimited)")
     ap.add_argument("--overwrite", action="store_true", help="refetch pages already saved")
+    ap.add_argument("--no-relative-links", dest="relative_links", action="store_false",
+                    help="keep absolute URLs in the saved Markdown instead of file-relative paths")
     a = ap.parse_args()
 
     fetcher = DocFetcher(a.url, a.out, parallel=a.parallel, timeout=a.timeout,
-                         overwrite=a.overwrite, max_pages=a.max_pages)
+                         overwrite=a.overwrite, max_pages=a.max_pages,
+                         relative_links=a.relative_links)
     asyncio.run(fetcher.run())
     print(f"done: {fetcher.scraped} saved, {fetcher.skipped} skipped, {len(fetcher.failed)} failed -> {a.out}")
     for url, err in fetcher.failed[:10]:
