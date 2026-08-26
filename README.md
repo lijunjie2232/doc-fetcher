@@ -56,7 +56,7 @@ fetcher-init            # 実行内容: crawl4ai-setup && crawl4ai-doctor
 ## 使い方
 
 ```bash
-doc-fetcher URL OUT_DIR [-p N] [--timeout S] [--max-pages N] [--overwrite]
+doc-fetcher URL OUT_DIR [-p N] [--timeout S] [--max-pages N] [--overwrite] [--no-relative-links]
 ```
 
 | オプション | デフォルト | 意味 |
@@ -67,6 +67,7 @@ doc-fetcher URL OUT_DIR [-p N] [--timeout S] [--max-pages N] [--overwrite]
 | `--timeout` | `20.0` | リクエストごとのタイムアウト（秒） |
 | `--max-pages` | `0` | N ページ取得で停止（`0` = 無制限） |
 | `--overwrite` | off | 保存済みページも再取得して上書き |
+| `--no-relative-links` | off（既定で相対化） | 本文／アウトライン中の取得対象ページへのリンクを絶対 URL のまま残す |
 
 実行例:
 
@@ -105,6 +106,11 @@ source: https://flet.dev/docs/getting-started/installation
 
 ...
 ```
+
+本文やサイドバー（アウトライン）のリンクは、取得対象ページを指す絶対 URL が
+保存先ファイルからの相対パスに書き換えられます（例: `https://flet.dev/docs/quick/start`
+→ `start.md`）。スコープ外の URL・画像などのアセット・ページ内アンカー（`#id`）は
+そのまま残ります。`--no-relative-links` で無効化できます。
 
 ## 注意事項と制約
 

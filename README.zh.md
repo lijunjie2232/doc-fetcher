@@ -53,7 +53,7 @@ fetcher-init            # 等价于: crawl4ai-setup && crawl4ai-doctor
 ## 用法
 
 ```bash
-doc-fetcher URL OUT_DIR [-p N] [--timeout S] [--max-pages N] [--overwrite]
+doc-fetcher URL OUT_DIR [-p N] [--timeout S] [--max-pages N] [--overwrite] [--no-relative-links]
 ```
 
 | 参数 | 默认值 | 含义 |
@@ -64,6 +64,7 @@ doc-fetcher URL OUT_DIR [-p N] [--timeout S] [--max-pages N] [--overwrite]
 | `--timeout` | `20.0` | 单请求超时（秒） |
 | `--max-pages` | `0` | 抓取 N 个页面后停止（`0` = 不限） |
 | `--overwrite` | 关闭 | 重新抓取并覆写已保存的页面 |
+| `--no-relative-links` | 关闭（默认相对化） | 正文/大纲中指向抓取范围内页面的链接保持绝对 URL |
 
 示例：
 
@@ -102,6 +103,10 @@ source: https://flet.dev/docs/getting-started/installation
 
 ...
 ```
+
+正文与侧边栏大纲中的链接，会把指向抓取范围内页面的绝对 URL 改写为相对于
+保存文件的路径（例如 `https://flet.dev/docs/quick/start` → `start.md`）。
+范围外的 URL、图片等资源、页内锚点（`#id`）保持原样。可用 `--no-relative-links` 关闭。
 
 ## 注意事项与限制
 

@@ -58,7 +58,7 @@ fetcher-init            # runs: crawl4ai-setup && crawl4ai-doctor
 ## Usage
 
 ```bash
-doc-fetcher URL OUT_DIR [-p N] [--timeout S] [--max-pages N] [--overwrite]
+doc-fetcher URL OUT_DIR [-p N] [--timeout S] [--max-pages N] [--overwrite] [--no-relative-links]
 ```
 
 | Flag | Default | Meaning |
@@ -69,6 +69,7 @@ doc-fetcher URL OUT_DIR [-p N] [--timeout S] [--max-pages N] [--overwrite]
 | `--timeout` | `20.0` | per-request timeout in seconds |
 | `--max-pages` | `0` | stop after N pages (`0` = unlimited) |
 | `--overwrite` | off | re-fetch and rewrite pages already saved |
+| `--no-relative-links` | off (relinking is on) | keep links to crawled pages as absolute URLs |
 
 Examples:
 
@@ -108,6 +109,11 @@ source: https://flet.dev/docs/getting-started/installation
 
 ...
 ```
+
+Links in the body and in the sidebar outline are rewritten from absolute URLs to
+paths relative to the saved file (e.g. `https://flet.dev/docs/quick/start` →
+`start.md`). Out-of-scope URLs, assets such as images, and in-page anchors
+(`#id`) keep their original value. Disable with `--no-relative-links`.
 
 ## Notes & limits
 
