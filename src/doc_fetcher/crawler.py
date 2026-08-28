@@ -33,6 +33,13 @@ _SKIP_SUFFIXES = (
     ".mp4", ".webm", ".woff", ".woff2", ".ttf", ".css", ".js",
 )
 
+# Non-content / inert tags crawl4ai does not strip by default (it already removes
+# script/style/noscript/link/meta). Mintlify, Next.js streaming, and Web Components
+# stash large JSON/JS/HTML payloads inside <template>.
+_EXCLUDED_TAGS = (
+    "template", "iframe", "canvas", "object", "embed", "noembed", "noframes",
+)
+
 # Inline Markdown link/image destination: ``[text](dest)`` / ``![alt](dest)``.
 _LINK_DEST = re.compile(r"(\]\()([^)\s]+)(\))")
 
@@ -158,6 +165,17 @@ class DocFetcher:
 
         return _LINK_DEST.sub(repl, markdown)
 
+    def _extract(self, html: str, url: str) -> tuple[str, list[str]]:
+        """Convert HTML to Markdown and return ``(markdown, internal_hrefs)``."""
+        result = self._scraper.scrap(
+            url,
+            html,
+            excluded_tags=list(_EXCLUDED_TAGS),
+            remove_comments=True,
+        )
+        markdown = self._md.generate_markdown(result.cleaned_html, base_url=url).raw_markdown
+        return markdown, [link.href for link in result.links.internal]
+
     async def _process(self, url: str, client: httpx.AsyncClient) -> None:
         if is_asset(url):
             return  # llms.txt, sitemap.xml, images: never a docs page, not an error
@@ -176,16 +194,15 @@ class DocFetcher:
             return
 
         final = canonicalize(str(resp.url), url)
-        result = self._scraper.scrap(final, resp.text)
-        markdown = self._md.generate_markdown(result.cleaned_html, base_url=final).raw_markdown
+        markdown, internal_hrefs = self._extract(resp.text, final)
         if self.relative_links:
             markdown = self._relativize(markdown, final, dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(f"---\nsource: {url}\n---\n\n{markdown}", encoding="utf-8")
         self.scraped += 1
 
-        for link in result.links.internal:
-            child = canonicalize(link.href, final)
+        for href in internal_hrefs:
+            child = canonicalize(href, final)
             if child in self.seen or not self._in_prefix(child):
                 continue
             self._discover(child)

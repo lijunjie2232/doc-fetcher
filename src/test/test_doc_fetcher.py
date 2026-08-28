@@ -44,4 +44,20 @@ assert sitemap_locs(urlset) == ("urlset", ["https://flet.dev/docs/a", "https://f
 index = b'<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://flet.dev/docs/sitemap.xml</loc></sitemap></sitemapindex>'
 assert sitemap_locs(index) == ("sitemapindex", ["https://flet.dev/docs/sitemap.xml"])
 
+# HTML -> Markdown strips inert HTML/JS containers (<template>, <script>, <style>, <iframe>, comments)
+sample_html = """<!doctype html><html><head><style>body{color:red}</style></head><body>
+<!-- hidden comment -->
+<main><h1>Hello Docs</h1><p>Read <a href="/docs/next">next</a>.</p></main>
+<script>window.__DATA__ = {"secret": 1};</script>
+<template id="mint-config">{"docsConfig":{"name":"Leak"}}</template>
+<template data-mint="manifest">{"compiledSource":"function MDX(){}"}</template>
+<iframe src="/embed">fallback iframe text</iframe>
+</body></html>"""
+md_out, hrefs = f._extract(sample_html, "https://flet.dev/docs")
+assert "Hello Docs" in md_out
+assert "docsConfig" not in md_out and "compiledSource" not in md_out
+assert "__DATA__" not in md_out and "color:red" not in md_out
+assert "fallback iframe text" not in md_out and "hidden comment" not in md_out
+assert any(h.endswith("/docs/next") for h in hrefs)
+
 print("self-check OK")
